@@ -1,7 +1,6 @@
 #ifndef SDL2_H
 #define SDL2_H
 
-#include <iostream>
 #include <memory>
 #include <vector>
 #include <string>
@@ -12,9 +11,7 @@
 namespace sdl2
 {
 
-  void logError(std::string&& str) {
-    std::cout << "[SDL ERROR] " << str << ' ' << SDL_GetError() << '\n';
-  }
+  void logError(std::string&& str);
   
   struct SDLWindowDestroyer
   {
@@ -46,139 +43,32 @@ namespace sdl2
   using sdl_renderer_ptr = std::unique_ptr<SDL_Renderer, SDLRendererDestroyer>;
   using sdl_texture_ptr = std::unique_ptr<SDL_Texture, SDLTextureDestroyer>;
   
-  auto make_window(std::string&& title, int width, int height) {
+  sdl_window_ptr make_window(std::string&& title, int width, int height);
 
-    auto const windowPos = SDL_WINDOWPOS_CENTERED;
-    auto const flags = SDL_WINDOW_SHOWN;
-    
-    sdl_window_ptr window{
-			  SDL_CreateWindow(title.c_str(),
-					   windowPos,
-					   windowPos,
-					   width,
-					   height,
-					   flags),
-			  SDLWindowDestroyer{}
-    };
+  sdl_surface_ptr make_surface(int width, int height);
 
-    if (!window) {
-      logError("Couldn't load window");
-      window.reset();
-    }
-    
-    return window;
-  }
+  sdl_renderer_ptr make_renderer(sdl_window_ptr& w);
 
-  auto make_surface(int width, int height) {
-    sdl_surface_ptr surface{
-			    SDL_CreateRGBSurface(0,
-						 width,
-						 height,
-						 32,
-						 0,
-						 0,
-						 0,
-						 0),
-			    SDLSurfaceDestroyer{}};
+  sdl_texture_ptr make_texture(sdl_renderer_ptr& r, sdl_surface_ptr& s);
 
-    if (!surface) {
-      logError("Couldn't create surface");
-      surface.reset();
-    }
-   
-    return surface;
-  }
+  std::unique_ptr<unsigned int, SDLSystemDestroyer> init(unsigned int initFlags = SDL_INIT_VIDEO);
 
-  auto make_renderer(sdl_window_ptr& w) {
-    sdl_renderer_ptr ren{
-			 SDL_CreateRenderer(w.get(),
-					    -1,
-					    SDL_RENDERER_ACCELERATED),
-			 SDLRendererDestroyer{}};
+  Uint32 RGB(SDL_Surface* sur, Uint8 r, Uint8 g, Uint8 b);
 
-    if (!ren) {
-      logError("Couldn't create renderer");
-      ren.reset();
-    }
+  Uint32 RGB(sdl_surface_ptr& sur, Uint8 r, Uint8 g, Uint8 b);
 
-    return ren;
-  }
+  void fill(sdl_surface_ptr& sur, Uint8 r, Uint8 g, Uint8 b);
 
-  auto make_texture(sdl_renderer_ptr& r, sdl_surface_ptr& s) {
-    sdl_texture_ptr tex{
-			SDL_CreateTextureFromSurface(r.get(), s.get()),
-			SDLTextureDestroyer{}
-    };
-
-    if (!tex) {
-      logError("Couldn't create texture");
-      tex.reset();
-    }
-
-    return tex;
-  }
-
-  auto init(unsigned int initFlags = SDL_INIT_VIDEO) {
-    unsigned int* systemFlags = new unsigned int(initFlags);
-    
-    std::unique_ptr<unsigned int, SDLSystemDestroyer> system{systemFlags, SDLSystemDestroyer{}};
-    
-    if (SDL_Init(initFlags) < 0) {
-      logError("Couldn't load SDL");
-      system.reset();
-    }
-    
-    return system;
-  }
-
-  auto RGB(SDL_Surface* sur, Uint8 r, Uint8 g, Uint8 b) {
-    return SDL_MapRGB(sur->format, r, g, b);
-  }
-
-  auto RGB(sdl_surface_ptr& sur, Uint8 r, Uint8 g, Uint8 b) {
-    return SDL_MapRGB(sur->format, r, g, b);
-  }
-
-  void fill(sdl_surface_ptr& sur, Uint8 r, Uint8 g, Uint8 b) {
-    SDL_FillRect(sur.get(), nullptr, RGB(sur, r, g, b));
-  }
-
-  void fill(sdl_renderer_ptr& ren, std::array<int, 4>& rect) {
-    SDL_Rect r;
-    r.x = rect[0];
-    r.y = rect[1];
-    r.w = rect[2];
-    r.h = rect[3];
-    SDL_RenderFillRect(ren.get(), &r);    
-  }
+  void fill(sdl_renderer_ptr& ren, std::array<int, 4>& rect);
   
-  void fill(sdl_renderer_ptr& ren, std::array<int, 4>&& rect) {
-    SDL_Rect r;
-    r.x = rect[0];
-    r.y = rect[1];
-    r.w = rect[2];
-    r.h = rect[3];
-    SDL_RenderFillRect(ren.get(), &r);
-  }
+  void fill(sdl_renderer_ptr& ren, std::array<int, 4>&& rect);
 
-  void clear(sdl_renderer_ptr& renderer) {
-    SDL_RenderClear(renderer.get());
-  }
+  void clear(sdl_renderer_ptr& renderer);
 
-  void copyToRenderer(sdl_renderer_ptr& renderer, std::vector<sdl_texture_ptr>& textures) {
-    SDL_SetRenderDrawColor(renderer.get(), 0, 0, 0, 255);
-    for (auto& texture : textures) {
-      int width;
-      int height;
-      SDL_QueryTexture(texture.get(), nullptr, nullptr, &width, &height);
-      SDL_Rect dest{0, 0, width, height};
-      SDL_RenderCopy(renderer.get(), texture.get(), nullptr, &dest);
-    }
-  }
+  void copyToRenderer(sdl_renderer_ptr& renderer, sdl_texture_ptr& textures, std::array<int, 4>& destination);
+  void copyToRenderer(sdl_renderer_ptr& renderer, sdl_texture_ptr& textures, std::array<int, 4>&& destination);  
 
-  void renderScreen(sdl_renderer_ptr& renderer) {
-    SDL_RenderPresent(renderer.get());
-  }
+  void renderScreen(sdl_renderer_ptr& renderer);
 
 }
 
