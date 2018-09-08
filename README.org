@@ -24,3 +24,4 @@ The executable will be created in ~build/bin~.
 - http://github.com/lefticus/cpp_starter_project
 - https://github.com/xyproto/sdl2-examples
 - http://lazyfoo.net/tutorials/SDL/index.php
+- https://handmadehero.org/
