@@ -1,0 +1,26 @@
+#+title: Sokoban
+
+* About
+
+A small sokoban project to practice and test some modern C++ features, and different tools.
+The objective is to create a small fully functional game from scratch.
+
+* Installation
+
+This project uses CMake for building and Conan for dependency management.
+
+#+begin_src bash :tangle yes
+cd path/to/this_project
+mkdir build
+cd build
+conan install .. && cmake ..
+make
+#+end_src
+
+The executable will be created in ~build/bin~.
+
+* References
+
+- http://github.com/lefticus/cpp_starter_project
+- https://github.com/xyproto/sdl2-examples
+- http://lazyfoo.net/tutorials/SDL/index.php
