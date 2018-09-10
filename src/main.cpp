@@ -19,7 +19,7 @@ namespace constants {
   constexpr int object_height{64};
 }
 
-enum class TextureType : int { Player = 1, Wall, Box, Goal, BoxOnGoal, Ground };
+enum class TextureType : int { Player = 1, Wall, Box, Goal, BoxOnGoal, Ground, Test };
 
 std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_renderer_ptr& renderer)
 {
@@ -53,17 +53,6 @@ std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_r
   return textures;
 }
 
-struct GameObject
-{
-  TextureType tex;
-  Vec4 rect{0, 0, constants::object_width, constants::object_height};
-
-  void move(int deltaX, int deltaY) {
-    rect.x += deltaX;
-    rect.y += deltaY;
-  }
-};
-
 enum class LevelObject : int
   {
    Player = 1,
@@ -73,9 +62,24 @@ enum class LevelObject : int
    Unknown
   };
 
+struct GameObject
+{
+  TextureType tex;
+  LevelObject type;
+  Vec4 rect{0, 0, constants::object_width, constants::object_height};
+
+  void move(int deltaX, int deltaY) {
+    rect.x += deltaX;
+    rect.y += deltaY;
+  }
+};
+
+
+
 struct Box : public GameObject
 {
-  TextureType tex = TextureType::Box;  
+  TextureType tex = TextureType::Box;
+  LevelObject type = LevelObject::Box;
   bool onGoal = false;
 };
 
@@ -146,6 +150,21 @@ T* collisionCheck(GameObject player, std::vector<T>& objects) {
   return nullptr;
 }
 
+template<class T>
+T* collisionCheck(GameObject* player, std::vector<T>& objects) {
+    Vec2 playerCenter{
+		    player->rect.x + player->rect.z / 2,
+		    player->rect.y + player->rect.w / 2};
+  
+  for (auto& obj : objects) {
+    if (pointInRect(playerCenter, obj.rect)) {
+      return &obj;
+    }
+  }
+  
+  return nullptr;
+}
+
 
 int main()
 {
@@ -176,9 +195,15 @@ int main()
 	      "2222222222"};
   
   GameObject player;
+
+  GameObject test;
+  
   Vec2 playerStart = level.findPlayerPosition();
   player.rect.x = playerStart.x * constants::object_width;
   player.rect.y = playerStart.y * constants::object_height;
+
+  test.rect.x = playerStart.x * constants::object_width;
+  test.rect.y = playerStart.y * constants::object_height;
 
   auto immovableObjects = {LevelObject::Wall};	
   
@@ -226,34 +251,38 @@ int main()
     
     if (std::none_of(immovableObjects.begin(),
 		     immovableObjects.end(),
-		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {
+		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {     
 
-      player.move(next_player_x * constants::object_width, next_player_y * constants::object_height);
-      
-      auto collider = collisionCheck(player, level.boxes);
+      GameObject nextPlayer = player;
+      nextPlayer.move(next_player_x * constants::object_width,
+		      next_player_y * constants::object_height);
+      auto collider = collisionCheck(nextPlayer, level.boxes);
       
       if (collider) {
 
-	auto nextNextStep = (player_y + next_player_y * 2) * level.width + (player_x + next_player_x*2);
+	unsigned int collider_x = static_cast<unsigned int>(collider->rect.x) / constants::object_width;
+	unsigned int collider_y = static_cast<unsigned int>(collider->rect.y) / constants::object_height;
+	GameObject nextCollider = *collider;
+	nextCollider.move(next_player_x * constants::object_width,
+		      next_player_y * constants::object_height);
 	
-	if (std::none_of(immovableObjects.begin(),
+	auto nextNextStep = (collider_y + next_player_y) * level.width + (collider_x + next_player_x);
+	
+	if (!collisionCheck(nextCollider, level.boxes) && std::none_of(immovableObjects.begin(),
 			 immovableObjects.end(),
 			 [&](auto obj){ return obj == (level.level[nextNextStep]);} )) {
-	  if (level.level[nextNextStep] == LevelObject::Goal) {
-	    collider->onGoal = true;
-	    collider->move(next_player_x * constants::object_width, next_player_y * constants::object_height);
+	  collider->onGoal =  (level.level[nextNextStep] == LevelObject::Goal);
 
-	  } else if (level.level[nextNextStep] != LevelObject::Goal) {
-	    collider->onGoal = false;
-	    collider->move(next_player_x * constants::object_width, next_player_y * constants::object_height);
-	  }
-	  
-	}  else {
-	          player.move(-next_player_x * constants::object_width, -next_player_y * constants::object_height);
-	  }
-      }     
-      
-    }
+	  collider->move(next_player_x * constants::object_width,
+			 next_player_y * constants::object_height);
+	  player.move(next_player_x * constants::object_width,
+		      next_player_y * constants::object_height);
+	}
+      } else {
+	player.move(next_player_x * constants::object_width, next_player_y * constants::object_height);	
+      } 
+    }     
+     
     
 
     
@@ -297,15 +326,15 @@ int main()
     }
 
     for (auto box : level.boxes) {
-      auto position = box.rect;
+      auto boxPosition = box.rect;
       if (box.onGoal) {
-	sdl2::copyToRenderer(renderer, textures[TextureType::BoxOnGoal], {static_cast<int>(position.x),
-									  static_cast<int>(position.y),
+	sdl2::copyToRenderer(renderer, textures[TextureType::BoxOnGoal], {static_cast<int>(boxPosition.x),
+									  static_cast<int>(boxPosition.y),
 									  constants::object_width,
 									  constants::object_height});
       } else {
-      sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(position.x),
-								  static_cast<int>(position.y),
+      sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(boxPosition.x),
+								  static_cast<int>(boxPosition.y),
 								  constants::object_width,
 								  constants::object_height});
       }
