@@ -43,6 +43,9 @@ std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_r
   auto boxOnGoalSurface = sdl2::make_surface(constants::object_width, constants::object_height);
   sdl2::fill(boxOnGoalSurface, 100, 0, 100);
 
+  auto testSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  sdl2::fill(testSurface, 100, 0, 100);
+
   std::unordered_map<TextureType, sdl2::sdl_texture_ptr> textures;
   
   textures[TextureType::Player]      = sdl2::make_texture(renderer, playerSurface);
@@ -51,6 +54,7 @@ std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_r
   textures[TextureType::Ground]      = sdl2::make_texture(renderer, groundSurface);
   textures[TextureType::Goal]        = sdl2::make_texture(renderer, goalSurface);
   textures[TextureType::BoxOnGoal]   = sdl2::make_texture(renderer, boxOnGoalSurface);
+  textures[TextureType::Test]        = sdl2::make_texture(renderer, testSurface);
 
   return textures;
 }
@@ -77,21 +81,16 @@ struct Physics {
 
   void move(Vec2 acceleration, float deltaTime = 1.0f) {
     if (acceleration == Vec2(0, 0)) return;
-    Vec2 oldVelocity = velocity;
     acceleration /= mass;
 
     velocity += acceleration * deltaTime;
 
     auto velLength = glm::length(velocity);
-    if (velLength > 5) {
-      velocity = glm::normalize(velocity) * 5.f;
+    if (velLength > 2) {
+      velocity = glm::normalize(velocity) * 2.f;
     }
 
     position += velocity * deltaTime + 0.5f * (acceleration) * (deltaTime * deltaTime);
-    
-    std::cout << "Acceleration: " << acceleration.x << ' ' << acceleration.y << '\n';
-    std::cout << "Velocity: " << velocity.x << ' ' << velocity.y << '\n';    
-    std::cout << "Position: " << position.x << ' ' << position.y << "\n\n";
   }
 };
 
@@ -176,7 +175,6 @@ bool pointInRect(Vec2 point, Vec4 rect) {
 }
 
 
-
 int main()
 {
 
@@ -218,8 +216,8 @@ int main()
 
   while (running) {
 
-    int player_x = static_cast<int>(player.rect.x) / constants::object_width;
-    int player_y = static_cast<int>(player.rect.y) / constants::object_height;
+    int player_x = static_cast<int>(player.position.x) / constants::object_width;
+    int player_y = static_cast<int>(player.position.y) / constants::object_height;
     int next_player_x = 0;
     int next_player_y = 0;
       
@@ -382,9 +380,16 @@ int main()
 								  constants::object_height});
       }
     }
+
+    sdl2::copyToRenderer(renderer, textures[TextureType::Test], {
+								 static_cast<int>(player_x * constants::object_width),
+								 static_cast<int>(player_y * constants::object_height),
+								static_cast<int>(player.rect.z),
+								static_cast<int>(player.rect.w)
+      });
     
-    sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x),
-								   static_cast<int>(player.position.y),
+    sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x - player.rect.z / 2),
+								   static_cast<int>(player.position.y - player.rect.w),
 								   static_cast<int>(player.rect.z),
 								   static_cast<int>(player.rect.w)});
     
