@@ -6,6 +6,8 @@
 #include <algorithm>
 
 #include "sdl2.hpp"
+
+#include <glm/glm.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -62,34 +64,72 @@ enum class LevelObject : int
    Unknown
   };
 
+Vec2 lerp(Vec2 start, Vec2 end, float percent) {
+  return start + (end - start) * percent;
+}
+
+template<class C>
+struct Physics {
+  Vec2 position{0};
+  Vec2 velocity{0};  
+  Vec2 drag{10};
+  float mass{1};
+
+  void move(Vec2 acceleration, float deltaTime = 1.0f) {
+    if (acceleration == Vec2(0, 0)) return;
+    Vec2 oldVelocity = velocity;
+    acceleration /= mass;
+
+    velocity += acceleration * deltaTime;
+
+    auto velLength = glm::length(velocity);
+    if (velLength > 5) {
+      velocity = glm::normalize(velocity) * 5.f;
+    }
+
+    position += velocity * deltaTime + 0.5f * (acceleration) * (deltaTime * deltaTime);
+    
+    std::cout << "Acceleration: " << acceleration.x << ' ' << acceleration.y << '\n';
+    std::cout << "Velocity: " << velocity.x << ' ' << velocity.y << '\n';    
+    std::cout << "Position: " << position.x << ' ' << position.y << "\n\n";
+  }
+};
+
+template<class C>
 struct GameObject
 {
   TextureType tex;
   LevelObject type;
   Vec4 rect{0, 0, constants::object_width, constants::object_height};
-
-  void move(int deltaX, int deltaY) {
-    rect.x += deltaX;
-    rect.y += deltaY;
-  }
 };
 
-
-
-struct Box : public GameObject
+struct Box : public GameObject<Box>
 {
   TextureType tex = TextureType::Box;
   LevelObject type = LevelObject::Box;
   bool onGoal = false;
 };
 
+
+struct Player : public GameObject<Player>, public Physics<Player>
+{
+};
+
+enum class KeyEvents {
+		UPKEY = 0,
+		DOWNKEY,
+		LEFTKEY,
+		RIGHTKEY,
+		// ONLY USE IT FOR MAKING ARRAYS
+		MAX
+};
+
 struct Level {
   Level(unsigned int levelWidth, unsigned int levelHeight, std::string levelDescription)
     : width(levelWidth), height(levelHeight)
   {
-    // TODO: clear this up
-    int i = 0;
-    int j = 0;
+    float i = 0;
+    float j = 0;
     for (auto object : levelDescription) {
       auto obj = static_cast<LevelObject>(std::atoi(&object));
       if (obj == LevelObject::Box) {
@@ -101,9 +141,9 @@ struct Level {
 	level.emplace_back(obj);
       }
       i++;
-      if (i >= width) {
-	i = 0;
-	j++;
+      if (static_cast<unsigned int>(i) >= width) {
+	i = 0.f;
+	j += 1.0f;
       }
     }
   }
@@ -135,35 +175,6 @@ bool pointInRect(Vec2 point, Vec4 rect) {
 	  && point.y <= rect.y + rect.w);
 }
 
-template<class T>
-T* collisionCheck(GameObject player, std::vector<T>& objects) {
-  Vec2 playerCenter{
-		    player.rect.x + player.rect.z / 2,
-		    player.rect.y + player.rect.w / 2};
-  
-  for (auto& obj : objects) {
-    if (pointInRect(playerCenter, obj.rect)) {
-      return &obj;
-    }
-  }
-  
-  return nullptr;
-}
-
-template<class T>
-T* collisionCheck(GameObject* player, std::vector<T>& objects) {
-    Vec2 playerCenter{
-		    player->rect.x + player->rect.z / 2,
-		    player->rect.y + player->rect.w / 2};
-  
-  for (auto& obj : objects) {
-    if (pointInRect(playerCenter, obj.rect)) {
-      return &obj;
-    }
-  }
-  
-  return nullptr;
-}
 
 
 int main()
@@ -194,97 +205,129 @@ int main()
 	      "2000000002"
 	      "2222222222"};
   
-  GameObject player;
-
-  GameObject test;
+  Player player;
   
   Vec2 playerStart = level.findPlayerPosition();
   player.rect.x = playerStart.x * constants::object_width;
   player.rect.y = playerStart.y * constants::object_height;
-
-  test.rect.x = playerStart.x * constants::object_width;
-  test.rect.y = playerStart.y * constants::object_height;
-
-  auto immovableObjects = {LevelObject::Wall};	
   
   SDL_Event event;
   bool running = true;
+
+  std::vector<bool> keys(static_cast<int>(KeyEvents::MAX));
+
   while (running) {
 
-    unsigned int player_x = static_cast<unsigned int>(player.rect.x) / constants::object_width;
-    unsigned int player_y = static_cast<unsigned int>(player.rect.y) / constants::object_height;
-    unsigned int next_player_x = 0;
-    unsigned int next_player_y = 0;
-    
-    // TODO: create a table for pressed keys?
+    int player_x = static_cast<int>(player.rect.x) / constants::object_width;
+    int player_y = static_cast<int>(player.rect.y) / constants::object_height;
+    int next_player_x = 0;
+    int next_player_y = 0;
+      
+    /* EVENTS */
     while (SDL_PollEvent(&event)) {
       switch(event.type) {
       case SDL_QUIT: {
 	running = false;
       } break;
       case SDL_KEYDOWN: {
-
-	// TODO: clear up this mess
-	
 	switch (event.key.keysym.sym) {
 	case SDLK_UP: {
-	  next_player_y = -1;	  
+	  keys[static_cast<int>(KeyEvents::UPKEY)] = true;
 	} break;
-	case SDLK_DOWN: {
-	  next_player_y = 1;
+	case SDLK_DOWN: {	
+	  keys[static_cast<int>(KeyEvents::DOWNKEY)] = true;
 	} break;
 	case SDLK_LEFT:{
-	  next_player_x = -1;
+	  keys[static_cast<int>(KeyEvents::LEFTKEY)] = true;
 	} break;
 	case SDLK_RIGHT:{
-	  next_player_x = 1;
-	  }
+	  keys[static_cast<int>(KeyEvents::RIGHTKEY)] = true;
+	} break;	
+	}
+      } break;
+      case SDL_KEYUP: {
+	switch (event.key.keysym.sym) {
+	case SDLK_UP: {
+	  keys[static_cast<int>(KeyEvents::UPKEY)] = false;
+	} break;
+	case SDLK_DOWN: {	
+	  keys[static_cast<int>(KeyEvents::DOWNKEY)] = false;
+	} break;
+	case SDLK_LEFT:{
+	  keys[static_cast<int>(KeyEvents::LEFTKEY)] = false;
+	} break;
+	case SDLK_RIGHT:{
+	  keys[static_cast<int>(KeyEvents::RIGHTKEY)] = false;
 	} break;
 	case SDLK_ESCAPE:{
 	  running = false;
 	}break;
 	}	
-      }	break;
+      } break;
+      }
     }
 
-    auto nextStep = (player_y + next_player_y) * level.width + (player_x + next_player_x);	  
+    if (keys[static_cast<int>(KeyEvents::UPKEY)]) {
+      next_player_y -= 1;
+    }
     
-    if (std::none_of(immovableObjects.begin(),
-		     immovableObjects.end(),
-		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {     
+    if (keys[static_cast<int>(KeyEvents::DOWNKEY)]) {
+      next_player_y += 1;
+    }
 
-      GameObject nextPlayer = player;
-      nextPlayer.move(next_player_x * constants::object_width,
-		      next_player_y * constants::object_height);
-      auto collider = collisionCheck(nextPlayer, level.boxes);
+    if (keys[static_cast<int>(KeyEvents::RIGHTKEY)]) {
+      next_player_x += 1;
+    }
+
+    if (keys[static_cast<int>(KeyEvents::LEFTKEY)]) {
+      next_player_x -= 1;
+    }
+
+    /* UPDATE */
+
+    Vec2 accel{next_player_x, next_player_y};
+    
+    player.move(accel);
+
+    // auto nextStep = (player_y + next_player_y) * level.width + (player_x + next_player_x);	  
+    
+    // if (std::none_of(immovableObjects.begin(),
+    // 		     immovableObjects.end(),
+    // 		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {     
+
+    //   GameObject nextPlayer = player;
+    //   nextPlayer.move(next_player_x * constants::object_width,
+    // 		      next_player_y * constants::object_height);
       
-      if (collider) {
+    //   auto collider = collisionCheck(nextPlayer, level.boxes);
+      
+    //   if (collider) {
 
-	unsigned int collider_x = static_cast<unsigned int>(collider->rect.x) / constants::object_width;
-	unsigned int collider_y = static_cast<unsigned int>(collider->rect.y) / constants::object_height;
-	GameObject nextCollider = *collider;
-	nextCollider.move(next_player_x * constants::object_width,
-		      next_player_y * constants::object_height);
+    // 	int collider_x = static_cast<int>(collider->rect.x) / constants::object_width;
+    // 	int collider_y = static_cast<int>(collider->rect.y) / constants::object_height;
+    // 	GameObject nextCollider = *collider;
+    // 	nextCollider.move(next_player_x * constants::object_width,
+    // 		      next_player_y * constants::object_height);
 	
-	auto nextNextStep = (collider_y + next_player_y) * level.width + (collider_x + next_player_x);
+    // 	auto nextNextStep = (collider_y + next_player_y) * level.width + (collider_x + next_player_x);
 	
-	if (!collisionCheck(nextCollider, level.boxes) && std::none_of(immovableObjects.begin(),
-			 immovableObjects.end(),
-			 [&](auto obj){ return obj == (level.level[nextNextStep]);} )) {
-	  collider->onGoal =  (level.level[nextNextStep] == LevelObject::Goal);
+    // 	if (!collisionCheck(nextCollider, level.boxes) && std::none_of(immovableObjects.begin(),
+    // 			 immovableObjects.end(),
+    // 			 [&](auto obj){ return obj == (level.level[nextNextStep]);} )) {
+    // 	  collider->onGoal =  (level.level[nextNextStep] == LevelObject::Goal);
 
-	  collider->move(next_player_x * constants::object_width,
-			 next_player_y * constants::object_height);
-	  player.move(next_player_x * constants::object_width,
-		      next_player_y * constants::object_height);
-	}
-      } else {
-	player.move(next_player_x * constants::object_width, next_player_y * constants::object_height);	
-      } 
-    }     
-     
+    // 	  collider->move(next_player_x * constants::object_width,
+    // 			 next_player_y * constants::object_height);
+    // 	  player.move(next_player_x * constants::object_width,
+    // 		      next_player_y * constants::object_height);
+    // 	}
+    //   } else {
+    // 	player.move(next_player_x * constants::object_width, next_player_y * constants::object_height);	
+    //   } 
+    // }
     
-
+     
+    /* DRAWING */
     
     sdl2::clear(renderer);
 
@@ -340,8 +383,8 @@ int main()
       }
     }
     
-    sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.rect.x),
-								   static_cast<int>(player.rect.y),
+    sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x),
+								   static_cast<int>(player.position.y),
 								   static_cast<int>(player.rect.z),
 								   static_cast<int>(player.rect.w)});
     
