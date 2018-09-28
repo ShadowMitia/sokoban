@@ -17,33 +17,33 @@ using Vec3 = glm::vec3;
 using Vec4 = glm::vec4;
 
 namespace constants {
-  constexpr int object_width{64};
-  constexpr int object_height{64};
+  constexpr int tile_width{64};
+  constexpr int tile_height{64};
 }
 
 enum class TextureType : int { Player = 1, Wall, Box, Goal, BoxOnGoal, Ground, Test };
 
 std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_renderer_ptr& renderer)
 {
-  auto playerSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto playerSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(playerSurface, 0, 255, 0);
 
-  auto boxSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto boxSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(boxSurface, 255, 255, 0);
 
-  auto wallSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto wallSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(wallSurface, 80, 80, 80);
 
-  auto groundSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto groundSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(groundSurface, 0, 50, 0);
 
-  auto goalSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto goalSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(goalSurface, 255, 0, 255);
 
-  auto boxOnGoalSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto boxOnGoalSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(boxOnGoalSurface, 100, 0, 100);
 
-  auto testSurface = sdl2::make_surface(constants::object_width, constants::object_height);
+  auto testSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(testSurface, 100, 0, 100);
 
   std::unordered_map<TextureType, sdl2::sdl_texture_ptr> textures;
@@ -99,7 +99,7 @@ struct GameObject
 {
   TextureType tex;
   LevelObject type;
-  Vec4 rect{0, 0, constants::object_width, constants::object_height};
+  Vec4 rect{0, 0, constants::tile_width, constants::tile_height};
 };
 
 struct Box : public GameObject<Box>
@@ -115,12 +115,12 @@ struct Player : public GameObject<Player>, public Physics<Player>
 };
 
 enum class KeyEvents {
-		UPKEY = 0,
-		DOWNKEY,
-		LEFTKEY,
-		RIGHTKEY,
-		// ONLY USE IT FOR MAKING ARRAYS
-		MAX
+		      UPKEY = 0,
+		      DOWNKEY,
+		      LEFTKEY,
+		      RIGHTKEY,
+		      // ONLY USE IT FOR MAKING ARRAYS
+		      MAX
 };
 
 struct Level {
@@ -133,8 +133,8 @@ struct Level {
       auto obj = static_cast<LevelObject>(std::atoi(&object));
       if (obj == LevelObject::Box) {
 	boxes.emplace_back();
-	boxes.back().rect.x = i * constants::object_width;
-	boxes.back().rect.y = j * constants::object_height;
+	boxes.back().rect.x = i * constants::tile_width;
+	boxes.back().rect.y = j * constants::tile_height;
 	level.emplace_back(LevelObject::Unknown);
       } else {
 	level.emplace_back(obj);
@@ -206,18 +206,18 @@ int main()
   Player player;
   
   Vec2 playerStart = level.findPlayerPosition();
-  player.rect.x = playerStart.x * constants::object_width;
-  player.rect.y = playerStart.y * constants::object_height;
+  player.rect.x = playerStart.x * constants::tile_width;
+  player.rect.y = playerStart.y * constants::tile_height;
   
   SDL_Event event;
   bool running = true;
 
-  std::vector<bool> keys(static_cast<int>(KeyEvents::MAX));
+  std::vector<bool> keys(static_cast<int>(KeyEvents::MAX), false);
 
   while (running) {
 
-    int player_x = static_cast<int>(player.position.x) / constants::object_width;
-    int player_y = static_cast<int>(player.position.y) / constants::object_height;
+    int player_x = static_cast<int>(player.position.x) / constants::tile_width;
+    int player_y = static_cast<int>(player.position.y) / constants::tile_height;
     int next_player_x = 0;
     int next_player_y = 0;
       
@@ -294,18 +294,18 @@ int main()
     // 		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {     
 
     //   GameObject nextPlayer = player;
-    //   nextPlayer.move(next_player_x * constants::object_width,
-    // 		      next_player_y * constants::object_height);
+    //   nextPlayer.move(next_player_x * constants::tile_width,
+    // 		      next_player_y * constants::tile_height);
       
     //   auto collider = collisionCheck(nextPlayer, level.boxes);
       
     //   if (collider) {
 
-    // 	int collider_x = static_cast<int>(collider->rect.x) / constants::object_width;
-    // 	int collider_y = static_cast<int>(collider->rect.y) / constants::object_height;
+    // 	int collider_x = static_cast<int>(collider->rect.x) / constants::tile_width;
+    // 	int collider_y = static_cast<int>(collider->rect.y) / constants::tile_height;
     // 	GameObject nextCollider = *collider;
-    // 	nextCollider.move(next_player_x * constants::object_width,
-    // 		      next_player_y * constants::object_height);
+    // 	nextCollider.move(next_player_x * constants::tile_width,
+    // 		      next_player_y * constants::tile_height);
 	
     // 	auto nextNextStep = (collider_y + next_player_y) * level.width + (collider_x + next_player_x);
 	
@@ -314,13 +314,13 @@ int main()
     // 			 [&](auto obj){ return obj == (level.level[nextNextStep]);} )) {
     // 	  collider->onGoal =  (level.level[nextNextStep] == LevelObject::Goal);
 
-    // 	  collider->move(next_player_x * constants::object_width,
-    // 			 next_player_y * constants::object_height);
-    // 	  player.move(next_player_x * constants::object_width,
-    // 		      next_player_y * constants::object_height);
+    // 	  collider->move(next_player_x * constants::tile_width,
+    // 			 next_player_y * constants::tile_height);
+    // 	  player.move(next_player_x * constants::tile_width,
+    // 		      next_player_y * constants::tile_height);
     // 	}
     //   } else {
-    // 	player.move(next_player_x * constants::object_width, next_player_y * constants::object_height);	
+    // 	player.move(next_player_x * constants::tile_width, next_player_y * constants::tile_height);	
     //   } 
     // }
     
@@ -339,8 +339,8 @@ int main()
 	case LevelObject::Wall:
 	  sdl2::copyToRenderer(renderer, textures[TextureType::Wall], {static_cast<int>(position.x),
 								       static_cast<int>(position.y),
-								       constants::object_width,
-								       constants::object_height});
+								       constants::tile_width,
+								       constants::tile_height});
 	  break;
 	case LevelObject::Player:
 	  // done afterwards so that player always looks above some of the objects
@@ -351,17 +351,17 @@ int main()
 	case LevelObject::Goal:
 	  sdl2::copyToRenderer(renderer, textures[TextureType::Goal], {static_cast<int>(position.x),
 								       static_cast<int>(position.y),
-								       constants::object_width,
-								       constants::object_height});
+								       constants::tile_width,
+								       constants::tile_height});
 	  break;
 	default:
 	  break;	  
 	}      
 
-      position.x += constants::object_width;
-      if (position.x >= static_cast<float>(constants::object_width * level.width)) {
+      position.x += constants::tile_width;
+      if (position.x >= static_cast<float>(constants::tile_width * level.width)) {
 	position.x = 0;
-	position.y += constants::object_height;
+	position.y += constants::tile_height;
       }
      
     }
@@ -371,21 +371,21 @@ int main()
       if (box.onGoal) {
 	sdl2::copyToRenderer(renderer, textures[TextureType::BoxOnGoal], {static_cast<int>(boxPosition.x),
 									  static_cast<int>(boxPosition.y),
-									  constants::object_width,
-									  constants::object_height});
+									  constants::tile_width,
+									  constants::tile_height});
       } else {
-      sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(boxPosition.x),
-								  static_cast<int>(boxPosition.y),
-								  constants::object_width,
-								  constants::object_height});
+	sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(boxPosition.x),
+								    static_cast<int>(boxPosition.y),
+								    constants::tile_width,
+								    constants::tile_height});
       }
     }
 
     sdl2::copyToRenderer(renderer, textures[TextureType::Test], {
-								 static_cast<int>(player_x * constants::object_width),
-								 static_cast<int>(player_y * constants::object_height),
-								static_cast<int>(player.rect.z),
-								static_cast<int>(player.rect.w)
+								 player_x * constants::tile_width,
+								 player_y * constants::tile_height,
+								 static_cast<int>(player.rect.z),
+								 static_cast<int>(player.rect.w)
       });
     
     sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x - player.rect.z / 2),
