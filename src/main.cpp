@@ -4,6 +4,8 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 #include "sdl2.hpp"
 
@@ -21,7 +23,7 @@ namespace constants {
   constexpr int tile_height{64};
 }
 
-enum class TextureType : int { Player = 1, Wall, Box, Goal, BoxOnGoal, Ground, Test };
+enum class TextureType : int { Player = 1, Wall, Box, Goal, BoxOnGoal, Ground, Test, Red, Green, Blue };
 
 std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_renderer_ptr& renderer)
 {
@@ -45,6 +47,16 @@ std::unordered_map<TextureType, sdl2::sdl_texture_ptr> buildTextures(sdl2::sdl_r
 
   auto testSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
   sdl2::fill(testSurface, 100, 0, 100);
+
+  auto redSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
+  sdl2::fill(redSurface, 255, 0, 0);
+
+  auto greenSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
+  sdl2::fill(greenSurface, 0, 255, 0);
+
+  auto blueSurface = sdl2::make_surface(constants::tile_width, constants::tile_height);
+  sdl2::fill(blueSurface, 0, 0, 255);
+  
 
   std::unordered_map<TextureType, sdl2::sdl_texture_ptr> textures;
   
@@ -79,9 +91,9 @@ struct Physics {
   Vec2 drag{10};
   float mass{1};
 
-  void move(Vec2 acceleration, float deltaTime = 1.0f) {
-    if (acceleration == Vec2(0, 0)) return;
-    acceleration /= mass;
+  void applyForce(Vec2 force, float deltaTime = 1.0f) {
+    if (force == Vec2(0, 0)) return;
+    Vec2 acceleration = force / mass;
 
     velocity += acceleration * deltaTime;
 
@@ -90,7 +102,7 @@ struct Physics {
       velocity = glm::normalize(velocity) * 2.f;
     }
 
-    position += velocity * deltaTime + 0.5f * (acceleration) * (deltaTime * deltaTime);
+    position += velocity * deltaTime;// + 0.5f * (acceleration) * (deltaTime * deltaTime);
   }
 };
 
@@ -122,6 +134,7 @@ enum class KeyEvents {
 		      // ONLY USE IT FOR MAKING ARRAYS
 		      MAX
 };
+
 
 struct Level {
   Level(unsigned int levelWidth, unsigned int levelHeight, std::string levelDescription)
@@ -174,6 +187,9 @@ bool pointInRect(Vec2 point, Vec4 rect) {
 	  && point.y <= rect.y + rect.w);
 }
 
+bool GJK() {
+  return false;
+}
 
 int main()
 {
@@ -206,16 +222,33 @@ int main()
   Player player;
   
   Vec2 playerStart = level.findPlayerPosition();
+
   player.rect.x = playerStart.x * constants::tile_width;
   player.rect.y = playerStart.y * constants::tile_height;
+  
+  player.position.x = playerStart.x * constants::tile_width;
+  player.position.y = playerStart.y * constants::tile_height;
   
   SDL_Event event;
   bool running = true;
 
   std::vector<bool> keys(static_cast<int>(KeyEvents::MAX), false);
 
+  using clock = std::chrono::high_resolution_clock;
+  using frame_period = std::chrono::duration<long long, std::ratio<1, 60>>;
+  
+  auto now = clock::now();
+  auto deltaTime = clock::now() - clock::now();
+
+  constexpr float ftStep{1.f}, ftSlice(1.f);
+
+  float lastFt{0.f};
+  float currentSlice{0.f};
+  
   while (running) {
 
+    auto beginFrame = clock::now();
+    
     int player_x = static_cast<int>(player.position.x) / constants::tile_width;
     int player_y = static_cast<int>(player.position.y) / constants::tile_height;
     int next_player_x = 0;
@@ -281,49 +314,14 @@ int main()
       next_player_x -= 1;
     }
 
+    currentSlice += lastFt;
+    
     /* UPDATE */
 
-    Vec2 accel{next_player_x, next_player_y};
-    
-    player.move(accel);
-
-    // auto nextStep = (player_y + next_player_y) * level.width + (player_x + next_player_x);	  
-    
-    // if (std::none_of(immovableObjects.begin(),
-    // 		     immovableObjects.end(),
-    // 		     [&](auto obj){ return obj == (level.level[nextStep]);} )) {     
-
-    //   GameObject nextPlayer = player;
-    //   nextPlayer.move(next_player_x * constants::tile_width,
-    // 		      next_player_y * constants::tile_height);
-      
-    //   auto collider = collisionCheck(nextPlayer, level.boxes);
-      
-    //   if (collider) {
-
-    // 	int collider_x = static_cast<int>(collider->rect.x) / constants::tile_width;
-    // 	int collider_y = static_cast<int>(collider->rect.y) / constants::tile_height;
-    // 	GameObject nextCollider = *collider;
-    // 	nextCollider.move(next_player_x * constants::tile_width,
-    // 		      next_player_y * constants::tile_height);
-	
-    // 	auto nextNextStep = (collider_y + next_player_y) * level.width + (collider_x + next_player_x);
-	
-    // 	if (!collisionCheck(nextCollider, level.boxes) && std::none_of(immovableObjects.begin(),
-    // 			 immovableObjects.end(),
-    // 			 [&](auto obj){ return obj == (level.level[nextNextStep]);} )) {
-    // 	  collider->onGoal =  (level.level[nextNextStep] == LevelObject::Goal);
-
-    // 	  collider->move(next_player_x * constants::tile_width,
-    // 			 next_player_y * constants::tile_height);
-    // 	  player.move(next_player_x * constants::tile_width,
-    // 		      next_player_y * constants::tile_height);
-    // 	}
-    //   } else {
-    // 	player.move(next_player_x * constants::tile_width, next_player_y * constants::tile_height);	
-    //   } 
-    // }
-    
+    for (; currentSlice >= ftSlice; currentSlice -= ftSlice) {
+      Vec2 accel{next_player_x, next_player_y};    
+      player.applyForce(accel, frame_period{1}.count());
+    }
      
     /* DRAWING */
     
@@ -395,7 +393,18 @@ int main()
     
     sdl2::renderScreen(renderer);
 
-    SDL_Delay(10);
+    auto endFrame = clock::now();
+    auto elapsedTime{endFrame - beginFrame};
+
+    float ft{std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(elapsedTime).count()};
+
+    lastFt = ft;
+
+    auto ftSeconds(ft / 1000.f);
+    auto fps(1.f / ftSeconds);
+
+    std::cout << "FT: " + std::to_string(ft) + "\nFPS: " + std::to_string(fps) + "\n";
+    //SDL_SetWindowTitle(window.get(), str.c_str());
   }
 
 
