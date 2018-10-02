@@ -313,8 +313,7 @@ namespace collision {
 			      Vec2{shape2.x + shape2.z, shape2.y + shape2.w}});
   }
 
-  std::pair<Vec2, float> EPA(std::vector<Vec2> const& shape1, std::vector<Vec2> const& shape2, std::vector<Vec2> simplex) {
-    std::cout << "Collision resolution\n";	 
+  std::pair<Vec2, float> EPA(std::vector<Vec2> const& shape1, std::vector<Vec2> const& shape2, std::vector<Vec2> simplex) {	 
     bool iterations = true;
     while (iterations) {	    
       int closestIndex = -1;
@@ -330,14 +329,6 @@ namespace collision {
 	n = glm::normalize(n);
 	float d = glm::dot(a, n);
 
-	std::cout << "a: " << a.x << ' ' << a.y << '\n';
-	std::cout << "b: " << b.x << ' ' << b.y << '\n';
-	std::cout << "e: " << e.x << ' ' << e.y << '\n';
-	std::cout << "oa: " << oa.x << ' ' << oa.y << '\n';
-	std::cout << "n: " << n.x << ' ' << n.y << '\n';
-	std::cout << "d: " << d << '\n';
-	std::cout << "------\n";
-
 	if (d < closestDistance && !std::isnan(d)) {
 	  closestNormal = n;
 	  closestDistance = d;
@@ -345,15 +336,11 @@ namespace collision {
 	}
       }
 
-      std::cout << "SELECTED\n"; std::cout << "n: " << closestNormal.x << ' ' << closestNormal.y << '\n'; std::cout << "dist: " << closestDistance << '\n'; std::cout << "index: " << closestIndex << '\n'; std::cout << "=====\n";
-
       Vec2 p = collision::support(shape1, shape2, closestNormal);
       float dist = glm::dot(p, closestNormal);
-      std::cout << p.x << ' ' << p.y << ' ' << dist << ' ' << closestNormal.x << ' ' << closestNormal.y << '\n';
       constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	    
       if (dist > -epsilon && dist < epsilon) {
-	std::cout << "Done!\n";
 	iterations = false;
       } else {
 	simplex.insert(simplex.begin() + closestIndex, p);
