@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <limits>
 
 #include "sdl2.hpp"
 
@@ -193,14 +194,14 @@ std::size_t indexOfFurthestPoint(std::vector<Vec2> shape, Vec2 direction) {
 }
 
 Vec2 averagePoint (std::vector<Vec2> points) {
-    Vec2 avg = { 0.f, 0.f };
-    for (size_t i = 0; i < points.size(); i++) {
-        avg.x += points[i].x;
-        avg.y += points[i].y;
-    }
-    avg.x /= points.size();
-    avg.y /= points.size();
-    return avg;
+  Vec2 avg = { 0.f, 0.f };
+  for (size_t i = 0; i < points.size(); i++) {
+    avg.x += points[i].x;
+    avg.y += points[i].y;
+  }
+  avg.x /= points.size();
+  avg.y /= points.size();
+  return avg;
 }
 
 //-----------------------------------------------------------------------------
@@ -208,16 +209,7 @@ Vec2 averagePoint (std::vector<Vec2> points) {
 // which kinda 'prefer' pointing towards the Origin in Minkowski space
 
 Vec2 tripleProduct (Vec2 a, Vec2 b, Vec2 c) {
-    
-    Vec2 r;
-    
-    float ac = glm::dot(a, c); // perform a.dot(c)
-    float bc = glm::dot(b, c); // perform b.dot(c)
-    
-    // perform b * a.dot(c) - a * b.dot(c)
-    r.x = b.x * ac - a.x * bc;
-    r.y = b.y * ac - a.y * bc;
-    return r;
+  return b * (glm::dot(a, c)) - a * (glm::dot(b, c));
 }
 
 namespace collision {
@@ -237,9 +229,10 @@ namespace collision {
 	    && point.y <= rect.y + rect.w);
   }
   
-  bool GJK(std::vector<Vec2> shape1, std::vector<Vec2> shape2) {
+  std::pair<std::vector<Vec2>, bool> GJK(std::vector<Vec2> const& shape1, std::vector<Vec2> const& shape2) {
     size_t index = 0; // index of current vertex of simplex
-    Vec2 a, b, c, d, ao, ab, ac, abperp, acperp, simplex[3];
+    Vec2 a, b, c, d, ao, ab, ac, abperp, acperp;
+    std::vector<Vec2> simplex(3);
     
     Vec2 position1 = averagePoint (shape1); // not a CoG but
     Vec2 position2 = averagePoint (shape2); // it's ok for GJK )
@@ -252,10 +245,11 @@ namespace collision {
       d.x = 1.f;
     
     // set the first support as initial point of the new simplex
-    a = simplex[0] = support (shape1, shape2, d);
+    simplex[0] = support (shape1, shape2, d);
+    a = simplex[0];
     
     if (glm::dot(a, d) <= 0)
-      return 0; // no collision
+      return {simplex, false}; // no collision
     
     d = -a; // The next search direction is always towards the origin, so the next search direction is negate(a)
     
@@ -264,7 +258,7 @@ namespace collision {
       a = simplex[++index] = support (shape1, shape2, d);
         
       if (glm::dot(a, d) <= 0)
-	return 0; // no collision
+	return{simplex, false}; // no collision
         
       ao = -a; // from point A to Origin is just negative A
         
@@ -294,7 +288,7 @@ namespace collision {
 	abperp = tripleProduct (ac, ab, ab);
             
 	if (glm::dot (abperp, ao) < 0)
-	  return 1; // collision
+	  return {simplex, true}; // collision
             
 	simplex[0] = simplex[1]; // swap first element (point C)
 
@@ -305,26 +299,86 @@ namespace collision {
       --index;
     }
     
-    return 0;
+    return {simplex, false};
   }
 
-    bool GJK(Vec4 shape1, Vec4 shape2) {
+  std::pair<std::vector<Vec2>, bool> GJK(Vec4 shape1, Vec4 shape2) {
     return GJK(std::vector<Vec2>{Vec2{shape1.x, shape1.y},
-	 Vec2{shape1.x + shape1.z, shape1.y},
-	 Vec2{shape1.x, shape1.y + shape1.w},
-	 Vec2{shape1.x + shape1.z, shape1.y + shape1.w}},
+				   Vec2{shape1.x + shape1.z, shape1.y},
+				     Vec2{shape1.x, shape1.y + shape1.w},
+				       Vec2{shape1.x + shape1.z, shape1.y + shape1.w}},
       std::vector<Vec2>{Vec2{shape2.x, shape2.y},
-       Vec2{shape2.x + shape2.z, shape2.y},
-       Vec2{shape2.x, shape2.y + shape2.w},
-       Vec2{shape2.x + shape2.z, shape2.y + shape2.w}});
+			  Vec2{shape2.x + shape2.z, shape2.y},
+			    Vec2{shape2.x, shape2.y + shape2.w},
+			      Vec2{shape2.x + shape2.z, shape2.y + shape2.w}});
+  }
+
+  std::pair<Vec2, float> EPA(std::vector<Vec2> const& shape1, std::vector<Vec2> const& shape2, std::vector<Vec2> simplex) {
+    std::cout << "Collision resolution\n";	 
+    bool iterations = true;
+    while (iterations) {	    
+      int closestIndex = -1;
+      Vec2 closestNormal;
+      float closestDistance = std::numeric_limits<float>::max();
+	  
+      for (std::size_t i = 0; i < simplex.size(); ++i) {
+	Vec2 a = simplex[i];
+	Vec2 b = i >= simplex.size()-1 ? simplex[0] : simplex[i+1];
+	Vec2 e = b - a;
+	Vec2 oa = a;
+	Vec2 n = tripleProduct(e, oa, e);
+	n = glm::normalize(n);
+	float d = glm::dot(a, n);
+
+	std::cout << "a: " << a.x << ' ' << a.y << '\n';
+	std::cout << "b: " << b.x << ' ' << b.y << '\n';
+	std::cout << "e: " << e.x << ' ' << e.y << '\n';
+	std::cout << "oa: " << oa.x << ' ' << oa.y << '\n';
+	std::cout << "n: " << n.x << ' ' << n.y << '\n';
+	std::cout << "d: " << d << '\n';
+	std::cout << "------\n";
+
+	if (d < closestDistance && !std::isnan(d)) {
+	  closestNormal = n;
+	  closestDistance = d;
+	  closestIndex = (i+1) % simplex.size();
+	}
+      }
+
+      std::cout << "SELECTED\n"; std::cout << "n: " << closestNormal.x << ' ' << closestNormal.y << '\n'; std::cout << "dist: " << closestDistance << '\n'; std::cout << "index: " << closestIndex << '\n'; std::cout << "=====\n";
+
+      Vec2 p = collision::support(shape1, shape2, closestNormal);
+      float dist = glm::dot(p, closestNormal);
+      std::cout << p.x << ' ' << p.y << ' ' << dist << ' ' << closestNormal.x << ' ' << closestNormal.y << '\n';
+      constexpr float epsilon = std::numeric_limits<float>::epsilon();
+	    
+      if (dist > -epsilon && dist < epsilon) {
+	std::cout << "Done!\n";
+	iterations = false;
+      } else {
+	simplex.insert(simplex.begin() + closestIndex, p);
+      }
+
+      return {closestNormal, closestDistance};
+    }
+
   }
 
 }
 
-
 int main()
 {
 
+  /*
+  std::vector<Vec2> shape1{Vec2{4, 11}, Vec2{9, 9}, Vec2{4, 5}};
+  std::vector<Vec2> shape2{Vec2{5, 7}, Vec2{12, 7}, Vec2{10, 2}, Vec2{7, 3}};
+  std::vector<Vec2> edges{Vec2(4, 2), Vec2(-8, -2), Vec2(-1, -2)};
+
+  collision::EPA(shape1, shape2, edges);
+
+  return 42;
+  */
+  
   if (!sdl2::init()) {
     return EXIT_FAILURE;
   }
@@ -447,110 +501,134 @@ int main()
     currentSlice += lastFt;
     
     /* UPDATE */
+
+    Vec4 playerShape;
+    playerShape.x = player.position.x - player.rect.z / 2;
+    playerShape.y = player.position.y - player.rect.w;
+    playerShape.z = player.rect.z;
+    playerShape.w = player.rect.w;
+
+    std::vector<Vec2> playerShapeVec{
+				     {playerShape.x, playerShape.y},
+				     {playerShape.x + playerShape.z, playerShape.y},
+				     {playerShape.x + playerShape.z, playerShape.y + playerShape.w},
+				     {playerShape.x, playerShape.y + playerShape.w}
+				     
+    };
     
     for (;currentSlice >= ftSlice; currentSlice -= ftSlice) {
       Vec2 accel{next_player_x, next_player_y};    
       player.applyForce(accel, frame_period{1}.count());
 
       for (auto obj : level.boxes) {
-      
-	if (collision::GJK(Vec4{player.position.x - player.rect.z / 2,
-				player.position.y - player.rect.w,
-				player.rect.z,
-				player.rect.w},
-	    obj.rect)) {
-	  std::cout << "Collision\n";
+
+	auto res = collision::GJK(playerShape, obj.rect);
+	
+	if (res.second) {
+
+	  std::vector<Vec2> objectVec{
+				     {obj.rect.x, obj.rect.y},
+				     {obj.rect.x + obj.rect.z, obj.rect.y},
+				     {obj.rect.x + obj.rect.z, obj.rect.y + obj.rect.w},
+				     {obj.rect.x, obj.rect.y + obj.rect.w}
+				     
+    };
+    
+	  
+	  auto res2 = collision::EPA(playerShapeVec, objectVec, res.first);
+
+	  player.position -= res2.first * res2.second;
+	  
 	}
-
       }
     }
       
-    /* DRAWING */
+      /* DRAWING */
     
-    sdl2::clear(renderer);
+      sdl2::clear(renderer);
 
-    sdl2::copyToRenderer(renderer, textures[TextureType::Ground], {0, 0, 0, 0});
+      sdl2::copyToRenderer(renderer, textures[TextureType::Ground], {0, 0, 0, 0});
     
-    Vec2 position{0, 0};
+      Vec2 position{0, 0};
 
-    for (auto object : level.level) {
-      switch (object)
-	{
-	case LevelObject::Wall:
-	  sdl2::copyToRenderer(renderer, textures[TextureType::Wall], {static_cast<int>(position.x),
-								       static_cast<int>(position.y),
-								       constants::tile_width,
-								       constants::tile_height});
-	  break;
-	case LevelObject::Player:
-	  // done afterwards so that player always looks above some of the objects
-	  break;
-	case LevelObject::Box:
-	  // done afterwards because dynamic
-	  break;
-	case LevelObject::Goal:
-	  sdl2::copyToRenderer(renderer, textures[TextureType::Goal], {static_cast<int>(position.x),
-								       static_cast<int>(position.y),
-								       constants::tile_width,
-								       constants::tile_height});
-	  break;
-	default:
-	  break;	  
-	}      
+      for (auto object : level.level) {
+	switch (object)
+	  {
+	  case LevelObject::Wall:
+	    sdl2::copyToRenderer(renderer, textures[TextureType::Wall], {static_cast<int>(position.x),
+									 static_cast<int>(position.y),
+									 constants::tile_width,
+									 constants::tile_height});
+	    break;
+	  case LevelObject::Player:
+	    // done afterwards so that player always looks above some of the objects
+	    break;
+	  case LevelObject::Box:
+	    // done afterwards because dynamic
+	    break;
+	  case LevelObject::Goal:
+	    sdl2::copyToRenderer(renderer, textures[TextureType::Goal], {static_cast<int>(position.x),
+									 static_cast<int>(position.y),
+									 constants::tile_width,
+									 constants::tile_height});
+	    break;
+	  default:
+	    break;	  
+	  }      
 
-      position.x += constants::tile_width;
-      if (position.x >= static_cast<float>(constants::tile_width * level.width)) {
-	position.x = 0;
-	position.y += constants::tile_height;
-      }
+	position.x += constants::tile_width;
+	if (position.x >= static_cast<float>(constants::tile_width * level.width)) {
+	  position.x = 0;
+	  position.y += constants::tile_height;
+	}
      
-    }
-
-    for (auto box : level.boxes) {
-      auto boxPosition = box.rect;
-      if (box.onGoal) {
-	sdl2::copyToRenderer(renderer, textures[TextureType::BoxOnGoal], {static_cast<int>(boxPosition.x),
-									  static_cast<int>(boxPosition.y),
-									  constants::tile_width,
-									  constants::tile_height});
-      } else {
-	sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(boxPosition.x),
-								    static_cast<int>(boxPosition.y),
-								    constants::tile_width,
-								    constants::tile_height});
       }
+
+      for (auto box : level.boxes) {
+	auto boxPosition = box.rect;
+	if (box.onGoal) {
+	  sdl2::copyToRenderer(renderer, textures[TextureType::BoxOnGoal], {static_cast<int>(boxPosition.x),
+									    static_cast<int>(boxPosition.y),
+									    constants::tile_width,
+									    constants::tile_height});
+	} else {
+	  sdl2::copyToRenderer(renderer, textures[TextureType::Box], {static_cast<int>(boxPosition.x),
+								      static_cast<int>(boxPosition.y),
+								      constants::tile_width,
+								      constants::tile_height});
+	}
+      }
+
+      sdl2::copyToRenderer(renderer, textures[TextureType::Test], {
+								   player_x * constants::tile_width,
+								   player_y * constants::tile_height,
+								   static_cast<int>(player.rect.z),
+								   static_cast<int>(player.rect.w)
+	});
+    
+      sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x - player.rect.z / 2),
+								     static_cast<int>(player.position.y - player.rect.w),
+								     static_cast<int>(player.rect.z),
+								     static_cast<int>(player.rect.w)});
+    
+      sdl2::renderScreen(renderer);
+
+      auto endFrame = clock::now();
+      auto elapsedTime{endFrame - beginFrame};
+
+      float ft{std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(elapsedTime).count()};
+
+      lastFt = ft;
+
+      auto ftSeconds(ft / 1000.f);
+      auto fps(1.f / ftSeconds);
+
+      //std::cout << "FT: " + std::to_string(ft) + "\nFPS: " + std::to_string(fps) + "\n";
+      SDL_Delay(10);
     }
 
-    sdl2::copyToRenderer(renderer, textures[TextureType::Test], {
-								 player_x * constants::tile_width,
-								 player_y * constants::tile_height,
-								 static_cast<int>(player.rect.z),
-								 static_cast<int>(player.rect.w)
-      });
-    
-    sdl2::copyToRenderer(renderer, textures[TextureType::Player], {static_cast<int>(player.position.x - player.rect.z / 2),
-								   static_cast<int>(player.position.y - player.rect.w),
-								   static_cast<int>(player.rect.z),
-								   static_cast<int>(player.rect.w)});
-    
-    sdl2::renderScreen(renderer);
 
-    auto endFrame = clock::now();
-    auto elapsedTime{endFrame - beginFrame};
-
-    float ft{std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(elapsedTime).count()};
-
-    lastFt = ft;
-
-    auto ftSeconds(ft / 1000.f);
-    auto fps(1.f / ftSeconds);
-
-    //std::cout << "FT: " + std::to_string(ft) + "\nFPS: " + std::to_string(fps) + "\n";
-    SDL_Delay(10);
-  }
-
-
-  std::cout << "Bye, bye\n"; 
+    std::cout << "Bye, bye\n"; 
   
-  return EXIT_SUCCESS;
-}
+    return EXIT_SUCCESS;
+  }
