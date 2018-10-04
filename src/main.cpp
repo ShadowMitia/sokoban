@@ -519,12 +519,13 @@ int main()
 				     {obj.rect.x + obj.rect.z, obj.rect.y + obj.rect.w},
 				     {obj.rect.x, obj.rect.y + obj.rect.w}
 				     
-    };
+	  };
     
 	  
 	  auto res2 = collision::EPA(playerShapeVec, objectVec, res.first);
 
-	  player.position -= res2.first * res2.second;
+	  player.position -= (res2.first) * (res2.second);
+	  player.velocity -= glm::normalize(res2.first) * glm::dot(player.velocity, glm::normalize(res2.first));
 	  
 	}
       }

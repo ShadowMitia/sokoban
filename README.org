@@ -28,3 +28,4 @@ The executable will be created in ~build/bin~.
 - https://github.com/SuperV1234/Tutorials/blob/master/DiveIntoC%2B%2B11/2_Arkanoid/p4.cpp
 - https://github.com/kroitor/gjk.c
 - http://www.dyn4j.org/2010/05/epa-expanding-polytope-algorithm/
+- https://www.gamedev.net/forums/topic/538002-sliding-along-a-wall--line-in-2d/ (wall sliding)
