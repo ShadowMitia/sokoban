@@ -2,6 +2,10 @@
 sdl2/2.0.8@bincrafters/stable
 glm/0.9.9.0@g-truc/stable
 fmt/5.2.0@bincrafters/stable 
+boost/1.68.0@conan/stable
+
+[options]
+boost_coroutine:shared=True
 
 [generators]
 cmake

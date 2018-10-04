@@ -7,6 +7,12 @@
 #include <chrono>
 #include <thread>
 #include <limits>
+#include <utility>
+#include <iomanip>
+
+#include <boost/coroutine2/all.hpp>
+
+using namespace boost::coroutines2;
 
 #include "sdl2.hpp"
 
@@ -315,10 +321,12 @@ namespace collision {
 
   std::pair<Vec2, float> EPA(std::vector<Vec2> const& shape1, std::vector<Vec2> const& shape2, std::vector<Vec2> simplex) {	 
     bool iterations = true;
+
+    int closestIndex = -1;
+    Vec2 closestNormal;
+    float closestDistance = std::numeric_limits<float>::max();
+    
     while (iterations) {	    
-      int closestIndex = -1;
-      Vec2 closestNormal;
-      float closestDistance = std::numeric_limits<float>::max();
 	  
       for (std::size_t i = 0; i < simplex.size(); ++i) {
 	Vec2 a = simplex[i];
@@ -345,13 +353,32 @@ namespace collision {
       } else {
 	simplex.insert(simplex.begin() + closestIndex, p);
       }
-
-      return {closestNormal, closestDistance};
     }
-
+    return {closestNormal, closestDistance};
   }
 
 }
+
+class Action {
+public:
+  Action() = delete;
+  Action(std::function<void(float)> const& updateFun) : update(updateFun) {
+    
+  };
+  
+  void operator()(float dt) {
+    coroutine<float>::push_type(
+				[&]( coroutine<float >::pull_type & yield) {
+				  while (!finished) {
+				    update(yield.get());
+				  }
+				})(dt);
+  }
+
+protected:
+  bool finished = false;
+  std::function<void(float)> const& update;
+};
 
 int main()
 {
@@ -365,6 +392,73 @@ int main()
 
   return 42;
   */
+
+  auto range = [](int start, int end) {
+		   return coroutine< int >::pull_type(
+				     [&]( coroutine< int >::push_type & yield) {
+				       int i = start;
+				       int j = end;
+				       while (i < j) {
+					 yield(i);
+					 i++;
+				       }
+				     });
+		     };
+
+  auto generator = [](std::string test) {
+  coroutine< int >::pull_type source(
+				     [&]( coroutine< int >::push_type & yield) {
+				       yield(42);
+				       yield(43);
+				       yield(44);
+				     });  
+  return source;
+		   };
+  
+  for ( auto i : generator("toto")) {
+    std::cout << i <<  " ";
+  }
+
+  std::cout << '\n';
+  
+  for (auto i : range(0, 10)) {
+    std::cout << i << ' ';
+  }
+  
+  std::cout << "\nDone" << std::endl;
+
+
+  auto getInput = [](){
+			std::string input;
+			std::getline(std::cin, input);
+			return input;
+		      };
+
+  auto say = [](std::string text){
+	       std::cout << text << '\n';
+	     };
+
+
+  auto update = [&](auto dt) {
+		  std::cout << "Input: ";
+		  std::cout << getInput() << '\n';
+		};
+
+  auto ask = [&](std::string&& text,
+		 std::vector<std::string>&& result,
+		 std::vector<std::string>&& responses) {	       
+	       say(text);
+	       auto response = getInput();
+	       for (std::size_t index = 0; index < result.size(); ++index) {
+		 if (result.at(index) == response) {
+		   std::cout << responses.at(index) << '\n';
+		 }
+	       }
+	     };
+ 
+  ask("Do you like cake?", {"yes", "no"}, {"Me too!", "Too bad.. More for me!"});
+  
+    return 42;
   
   if (!sdl2::init()) {
     return EXIT_FAILURE;
@@ -433,6 +527,9 @@ int main()
       } break;
       case SDL_KEYDOWN: {
 	switch (event.key.keysym.sym) {
+	case SDLK_a: {
+	  std::cout << "a" << '\n';
+	}break;
 	case SDLK_UP: {
 	  keys[static_cast<int>(KeyEvents::UPKEY)] = true;
 	} break;
