@@ -55,8 +55,8 @@ add_executable(sokoban src/main.cpp src/sdl2.cpp)
 target_compile_features(sokoban PRIVATE cxx_std_14)
 target_link_libraries(sokoban PRIVATE ${CONAN_LIBS} project_warnings --coverage)
 
-# enable_testing()
+enable_testing()
 
-# add_executable(tester tester.cpp)
-# target_link_libraries(tester PRIVATE project_warnings --coverage)
-# add_test(Tester tester)
+add_executable(tester tests/main.cpp)
+target_link_libraries(tester PRIVATE project_warnings --coverage)
+add_test(Tester tester)
